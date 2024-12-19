@@ -114,6 +114,129 @@ function ImageEditor() {
       });
     }
   };
+  const applyEdgeDetection = (img) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+  
+    const sobelX = [
+      [-1, 0, 1],
+      [-2, 0, 2],
+      [-1, 0, 1]
+    ];
+    const sobelY = [
+      [-1, -2, -1],
+      [0, 0, 0],
+      [1, 2, 1]
+    ];
+  
+    const width = canvas.width;
+    const height = canvas.height;
+    const edgeData = new Uint8ClampedArray(data);
+  
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        let pixelX = 0;
+        let pixelY = 0;
+  
+        for (let j = -1; j <= 1; j++) {
+          for (let i = -1; i <= 1; i++) {
+            const idx = ((y + j) * width + (x + i)) * 4;
+            const gray = data[idx] * 0.3 + data[idx + 1] * 0.59 + data[idx + 2] * 0.11;
+  
+            pixelX += sobelX[j + 1][i + 1] * gray;
+            pixelY += sobelY[j + 1][i + 1] * gray;
+          }
+        }
+  
+        const magnitude = Math.sqrt(pixelX ** 2 + pixelY ** 2);
+        const idx = (y * width + x) * 4;
+        edgeData[idx] = magnitude;
+        edgeData[idx + 1] = magnitude;
+        edgeData[idx + 2] = magnitude;
+        edgeData[idx + 3] = 255; // Keep alpha channel
+      }
+    }
+  
+    ctx.putImageData(new ImageData(edgeData, width, height), 0, 0);
+  };
+
+  const applyHistogramEqualization = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+  
+    const histogram = new Array(256).fill(0);
+    const cdf = new Array(256).fill(0);
+  
+    // Calculate histogram
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11);
+      histogram[gray]++;
+    }
+  
+    // Calculate cumulative distribution function (CDF)
+    cdf[0] = histogram[0];
+    for (let i = 1; i < 256; i++) {
+      cdf[i] = cdf[i - 1] + histogram[i];
+    }
+  
+    // Normalize CDF
+    const cdfMin = cdf.find(value => value > 0);
+    const totalPixels = canvas.width * canvas.height;
+    const cdfNormalized = cdf.map(value => Math.round((value - cdfMin) / (totalPixels - cdfMin) * 255));
+  
+    // Apply equalization
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11);
+      const newGray = cdfNormalized[gray];
+      data[i] = data[i + 1] = data[i + 2] = newGray;
+    }
+  
+    ctx.putImageData(imageData, 0, 0);
+  };
+
+  const applyCustomFilter = (kernel) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    const width = canvas.width;
+    const height = canvas.height;
+  
+    const result = new Uint8ClampedArray(data);
+  
+    const offset = Math.floor(kernel.length / 2);
+  
+    for (let y = offset; y < height - offset; y++) {
+      for (let x = offset; x < width - offset; x++) {
+        let r = 0, g = 0, b = 0;
+  
+        for (let j = -offset; j <= offset; j++) {
+          for (let i = -offset; i <= offset; i++) {
+            const idx = ((y + j) * width + (x + i)) * 4;
+            const weight = kernel[j + offset][i + offset];
+  
+            r += data[idx] * weight;
+            g += data[idx + 1] * weight;
+            b += data[idx + 2] * weight;
+          }
+        }
+  
+        const idx = (y * width + x) * 4;
+        result[idx] = Math.min(255, Math.max(0, r));
+        result[idx + 1] = Math.min(255, Math.max(0, g));
+        result[idx + 2] = Math.min(255, Math.max(0, b));
+        result[idx + 3] = 255; // Keep alpha channel
+      }
+    }
+  
+    ctx.putImageData(new ImageData(result, width, height), 0, 0);
+  };
+  
+  
 
   return (
     <div className="container">
@@ -177,6 +300,19 @@ function ImageEditor() {
               />
               <span>{config.blur}px</span>
             </div>
+            <div className='edge'>
+            <button onClick={() => applyEdgeDetection(image)}>Edge Detection</button>
+            </div>
+
+            <div className='histogram'>
+            <button onClick={applyHistogramEqualization}>Histogram Equalization</button>
+            </div>
+
+            <div className='customfilter'>
+            <button onClick={() => applyCustomFilter([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])}>Sharpen</button>
+            <button onClick={() => applyCustomFilter([[1, 1, 1], [1, -7, 1], [1, 1, 1]])}>Emboss</button>
+
+            </div>
 
             <div className="control">
               <label>Image Resolution</label>
@@ -236,6 +372,7 @@ function ImageEditor() {
                 Reset Image
               </button>
             </div>
+           
           </div>
         </div>
       )}

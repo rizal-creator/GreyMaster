@@ -48,6 +48,32 @@
   gap: 15px;
 }
 
+.edge {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background-color: #218838;
+  padding: 20px;
+}
+
+.histogram {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background-color: #218838;
+  padding: 20px;
+}
+
+.customfilter {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  background-color: #218838;
+  padding: 20px;
+}
+
+
+
 .control label {
   flex: 1;
   color: #495057;
